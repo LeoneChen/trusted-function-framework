@@ -8,7 +8,7 @@
 
 #define ENCLAVE_FILENAME "enclave_service.signed.so"
 
-int SGX_CDECL main(int argc, char** argv) {
+int SGX_CDECL __hidden_main(int argc, char** argv) {
   if (argc < 3) {
     printf("Usage: %s <function-name> [args ...]\n", argv[0]);
     return TEE_ERROR_PARAMETERS;

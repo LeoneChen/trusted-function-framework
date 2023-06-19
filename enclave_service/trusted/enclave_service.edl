@@ -3,4 +3,6 @@
 enclave {
     from "sgx_tsgxssl.edl" import *;
     from "kubetee.edl" import *;
+    from "sgx_pthread.edl" import *;
+    from "SGXSanRTEnclave.edl" import *;
 };

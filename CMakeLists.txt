@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(kubetee-tff)
+set(CMAKE_C_COMPILER "clang-13")
+set(CMAKE_CXX_COMPILER  "clang++-13")
+get_filename_component(SGX_DIR ../../install REALPATH)
+get_filename_component(SGX_SSL_DIR ../../install/sgxssl REALPATH)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 find_package(SGX REQUIRED)

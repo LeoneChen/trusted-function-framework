@@ -1,3 +1,11 @@
+#if defined(__cplusplus)
+extern "C"{
+#endif
+void SGXSanLogEnter(const char *str);
+#if defined(__cplusplus)
+}
+#endif
+#define LogEnter SGXSanLogEnter
 #include <map>
 #include <string>
 
@@ -26,6 +34,7 @@ TeeErrorCode __attribute__((weak)) RegisterTrustedPbFunctionsEx() {
 TeeErrorCode ecall_TeeRun(const char* attr_buf, size_t attr_len,
                           const char* req_buf, size_t req_len, char** res_buf,
                           size_t* res_len) {
+    LogEnter(__func__);
   // check and register functions firstly if they are not registered
   using tee::trusted::TeeInstance;
   TeeInstance& ti = TeeInstance::GetInstance();

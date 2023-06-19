@@ -1,15 +1,15 @@
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-set(SGXSSL_INC /opt/intel/sgxssl/include)
+set(SGXSSL_INC ${SGX_SSL_DIR}/include)
 
 find_package(Protobuf REQUIRED)
 set(TEE_PROTO_FILES
     ${TEE_TOP_DIR}/proto/kubetee.proto
 )
-PROTOBUF_GENERATE_CPP(
+PROTOBUF_GENERATE_CPP_ENCLAVE(
     TEE_PROTO_SRCS
     TEE_PROTO_HDRS
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/tproto
     ${TEE_PROTO_FILES}
 )
 
@@ -32,6 +32,7 @@ include_directories(
     ${TOP_SRC_DIR}/include
     ${TOP_SRC_DIR}/include/tee
     ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/tproto
     ${CMAKE_CURRENT_BINARY_DIR}
     ${SGXSSL_INC}
     ${TEE_TOP_DIR}/third_party/cppcodec
