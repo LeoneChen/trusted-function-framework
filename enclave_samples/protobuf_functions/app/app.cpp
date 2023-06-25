@@ -32,7 +32,7 @@ TeeErrorCode RegisterUntrustedPbFunctionsEx() {
 }
 #endif
 
-int main(void) {
+int __hidden_main(void) {
   TeeErrorCode ret = TEE_ERROR_GENERIC;
 
   // Create and initialize the enclave

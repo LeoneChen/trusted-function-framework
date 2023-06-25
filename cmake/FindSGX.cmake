@@ -35,9 +35,9 @@ include(CMakeParseArguments)
 
 set(SGX_FOUND "NO")
 
-if(EXISTS SGX_DIR)
+if(EXISTS ${SGX_DIR})
     set(SGX_PATH ${SGX_DIR})
-elseif(EXISTS SGX_ROOT)
+elseif(EXISTS ${SGX_ROOT})
     set(SGX_PATH ${SGX_ROOT})
 elseif(EXISTS $ENV{SGX_SDK})
     set(SGX_PATH $ENV{SGX_SDK})
@@ -104,12 +104,38 @@ if(SGX_FOUND)
     endif()
 
     set(ENCLAVE_INC_FLAGS "-I${SGX_INCLUDE_DIR} -I${SGX_TLIBC_INCLUDE_DIR} -I${SGX_LIBCXX_INCLUDE_DIR}")
-    set(ENCLAVE_C_FLAGS "${SGX_COMMON_CFLAGS} -nostdinc -fvisibility=hidden -fpie -fstack-protector-strong -ffunction-sections -fdata-sections ${ENCLAVE_INC_FLAGS}")
-    set(ENCLAVE_CXX_FLAGS "${ENCLAVE_C_FLAGS} -nostdinc++")
+    set(ENCLAVE_C_FLAGS "${SGX_COMMON_CFLAGS} -fvisibility=hidden -fPIC -fstack-protector-strong -ffunction-sections -fdata-sections ${ENCLAVE_INC_FLAGS}")
+    if(KAFL_FUZZER)
+        set(ENCLAVE_C_FLAGS "${ENCLAVE_C_FLAGS} -Wno-inconsistent-missing-override -fno-discard-value-names -flegacy-pass-manager -Xclang -load -Xclang ${SGX_PATH}/lib64/libSGXSanPass.so")
+    else()
+        set(ENCLAVE_C_FLAGS "${ENCLAVE_C_FLAGS} -Wno-inconsistent-missing-override -fno-discard-value-names -flegacy-pass-manager -Xclang -load -Xclang ${SGX_PATH}/lib64/libSGXSanPass.so -fsanitize-coverage=inline-8bit-counters,bb,no-prune,pc-table,trace-cmp -fprofile-instr-generate -fcoverage-mapping")
+    endif()
+    set(ENCLAVE_CXX_FLAGS "${ENCLAVE_C_FLAGS}")
 
     set(APP_INC_FLAGS "-I${SGX_PATH}/include")
     set(APP_C_FLAGS "${SGX_COMMON_CFLAGS} -fPIC -Wno-attributes ${APP_INC_FLAGS}")
     set(APP_CXX_FLAGS "${APP_C_FLAGS}")
+
+    function(_build_edl_hdr edl edl_search_paths use_prefix)
+        get_filename_component(EDL_NAME ${edl} NAME_WE)
+        get_filename_component(EDL_ABSPATH ${edl} ABSOLUTE)
+        set(EDL_T_H "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_t.h")
+        set(SEARCH_PATHS "")
+        foreach(path ${edl_search_paths})
+            get_filename_component(ABSPATH ${path} ABSOLUTE)
+            list(APPEND SEARCH_PATHS "${ABSPATH}")
+        endforeach()
+        list(APPEND SEARCH_PATHS "${SGX_PATH}/include")
+        string(REPLACE ";" ":" SEARCH_PATHS "${SEARCH_PATHS}")
+        if(${use_prefix})
+            set(USE_PREFIX "--use-prefix")
+        endif()
+        add_custom_command(OUTPUT ${EDL_T_H}
+                           COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --header-only --trusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
+                           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+        set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_t.h")
+    endfunction()
 
     function(_build_edl_obj edl edl_search_paths use_prefix)
         get_filename_component(EDL_NAME ${edl} NAME_WE)
@@ -153,9 +179,10 @@ if(SGX_FOUND)
             set(LDSCRIPT_FLAG "-Wl,--version-script=${LDS_ABSPATH}")
         endif()
 
-        _build_edl_obj(${SGX_EDL} "${SGX_EDL_SEARCH_PATHS}" ${SGX_USE_PREFIX})
+        _build_edl_hdr(${SGX_EDL} "${SGX_EDL_SEARCH_PATHS}" ${SGX_USE_PREFIX})
 
-        add_library(${target} STATIC ${SGX_SRCS} $<TARGET_OBJECTS:${target}-edlobj>)
+        get_filename_component(EDL_NAME ${SGX_EDL} NAME_WE)
+        add_library(${target} STATIC ${SGX_SRCS} ${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_t.h)
         set_target_properties(${target} PROPERTIES COMPILE_FLAGS ${ENCLAVE_CXX_FLAGS})
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -200,15 +227,19 @@ if(SGX_FOUND)
 
         target_link_libraries(${target} "${SGX_COMMON_CFLAGS} \
             -Wl,-z,relro,-z,now,-z,noexecstack \
-            -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L${SGX_LIBRARY_PATH} \
-            -Wl,--whole-archive -l${SGX_TRTS_LIB} -Wl,--no-whole-archive \
-            -L/opt/intel/sgxssl/lib64 \
+            -L${SGX_LIBRARY_PATH} \
+            -Wl,--whole-archive -lSGXSanRTEnclave -l${SGX_TRTS_LIB} -Wl,--no-whole-archive \
+            -L${SGX_SSL_DIR}/lib64 \
             -Wl,--whole-archive -lsgx_tsgxssl -Wl,--no-whole-archive \
-            -Wl,--start-group ${TLIB_LIST} -lsgx_tstdc -lsgx_tcxx -lsgx_tkey_exchange -lsgx_tcrypto -l${SGX_TSVC_LIB} -lsgx_pthread -lsgx_tsgxssl_crypto -Wl,--end-group \
-            -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
-            -Wl,-pie,-eenclave_entry -Wl,--export-dynamic \
-            ${LDSCRIPT_FLAG} \
+            -Wl,--start-group ${TLIB_LIST} -lsgx_tkey_exchange -lsgx_tcrypto -l${SGX_TSVC_LIB} -lsgx_tsgxssl_crypto -Wl,--end-group \
+            -Wl,-Bsymbolic \
+            -Wl,-eenclave_entry -Wl,--export-dynamic \
 	    -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections")
+        if(KAFL_FUZZER)
+            target_link_libraries(${target} "--shared")
+        else()
+            target_link_libraries(${target} "--shared -fuse-ld=lld -fprofile-instr-generate")
+        endif()
     endfunction()
 
     # sign the enclave, according to configurations one-step or two-step signing will be performed.
@@ -318,11 +349,11 @@ if(SGX_FOUND)
             message(FATAL_ERROR "SGX enclave edl file search paths are not provided!")
         endif()
 
-        set(EDL_U_SRCS "")
+        set(EDL_U_HDRS "")
         foreach(EDL ${SGX_EDL})
             get_filename_component(EDL_NAME ${EDL} NAME_WE)
             get_filename_component(EDL_ABSPATH ${EDL} ABSOLUTE)
-            set(EDL_U_C "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_u.c")
+            set(EDL_U_H "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_u.h")
             set(SEARCH_PATHS "")
             foreach(path ${SGX_EDL_SEARCH_PATHS})
                 get_filename_component(ABSPATH ${path} ABSOLUTE)
@@ -333,15 +364,19 @@ if(SGX_FOUND)
             if(${SGX_USE_PREFIX})
                 set(USE_PREFIX "--use-prefix")
             endif()
-            add_custom_command(OUTPUT ${EDL_U_C}
-                               COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --untrusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
+            add_custom_command(OUTPUT ${EDL_U_H}
+                               COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --header-only --untrusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
                                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-            list(APPEND EDL_U_SRCS ${EDL_U_C})
+            list(APPEND EDL_U_HDRS ${EDL_U_H})
         endforeach()
 
-        add_library(${target} ${mode} ${SGX_SRCS} ${EDL_U_SRCS})
+        add_library(${target} ${mode} ${SGX_SRCS} ${EDL_U_HDRS})
+        if(KAFL_FUZZER)
         set_target_properties(${target} PROPERTIES COMPILE_FLAGS ${APP_CXX_FLAGS})
+        else()
+        set_target_properties(${target} PROPERTIES COMPILE_FLAGS "${APP_CXX_FLAGS} -fsanitize-coverage=inline-8bit-counters,bb,no-prune,pc-table,trace-cmp -fprofile-instr-generate -fcoverage-mapping")
+        endif()
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
         target_link_libraries(${target} "${SGX_COMMON_CFLAGS} \
                                          -L${SGX_LIBRARY_PATH} \
@@ -381,6 +416,7 @@ if(SGX_FOUND)
             endif()
             add_custom_command(OUTPUT ${EDL_U_C}
                                COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --untrusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
+                               --dump-parse Enclave.edl.json
                                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
             list(APPEND EDL_U_SRCS ${EDL_U_C})
@@ -395,6 +431,13 @@ if(SGX_FOUND)
                                          -l${SGX_USVC_LIB} \
                                          -lsgx_ukey_exchange \
                                          -lpthread")
+        if(KAFL_FUZZER)
+            set_target_properties(${target} PROPERTIES COMPILE_FLAGS "${APP_CXX_FLAGS} -flegacy-pass-manager -Xclang -load -Xclang ${SGX_PATH}/lib64/libSGXFuzzerPass.so")
+            target_link_libraries(${target} "-ldl -Wl,-rpath=${SGX_LIBRARY_PATH} -Wl,-whole-archive -lSGXSanRTApp -Wl,-no-whole-archive -lSGXFuzzerRT -lcrypto -lboost_program_options -rdynamic -lnyx_agent")
+        else()
+            set_target_properties(${target} PROPERTIES COMPILE_FLAGS "${APP_CXX_FLAGS} -flegacy-pass-manager -Xclang -load -Xclang ${SGX_PATH}/lib64/libSGXFuzzerPass.so -fsanitize-coverage=inline-8bit-counters,bb,no-prune,pc-table,trace-cmp -fprofile-instr-generate -fcoverage-mapping")
+            target_link_libraries(${target} "-ldl -Wl,-rpath=${SGX_LIBRARY_PATH} -Wl,-whole-archive -lSGXSanRTApp -Wl,-no-whole-archive -lSGXFuzzerRT -lcrypto -lboost_program_options -rdynamic -fuse-ld=lld -fcoverage-mapping")
+        endif()
 
         set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_u.h")
     endfunction()

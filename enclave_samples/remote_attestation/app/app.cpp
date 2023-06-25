@@ -17,7 +17,7 @@ void ocall_print_string(const char* str) {
   printf("%s", str);
 }
 
-int SGX_CDECL main(void) {
+int SGX_CDECL __hidden_main(void) {
   // Step 1: Create and initialize the enclave
   std::string enclave_name = "SampleRemoteAttestation";
   EnclaveInstance* enclave = EnclavesManager::GetInstance().CreateEnclave(

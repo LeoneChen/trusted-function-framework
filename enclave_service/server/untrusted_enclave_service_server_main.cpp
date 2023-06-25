@@ -18,7 +18,7 @@ void sig_handler(int signum) {
   }
 }
 
-int SGX_CDECL main(void) {
+int SGX_CDECL _hidden_main(void) {
   // Create and initialize the enclave
   std::string enclave_name = "EnclaveServiceServer";
   g_enclave = EnclavesManager::GetInstance().CreateEnclave(enclave_name,

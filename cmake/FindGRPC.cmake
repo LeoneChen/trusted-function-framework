@@ -58,6 +58,7 @@ function(GRPC_GENERATE_CPP SRCS HDRS DEST)
     list(APPEND ${SRCS} "${DEST}/${FIL_WE}.grpc.pb.cc")
     list(APPEND ${HDRS} "${DEST}/${FIL_WE}.grpc.pb.h")
 
+    file(MAKE_DIRECTORY ${DEST})
     add_custom_command(
       OUTPUT "${DEST}/${FIL_WE}.grpc.pb.cc"
              "${DEST}/${FIL_WE}.grpc.pb.h"

@@ -1,5 +1,6 @@
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 
 #include "./kubetee_t.h"
 #include "tee/common/log.h"

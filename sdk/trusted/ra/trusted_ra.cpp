@@ -1,3 +1,11 @@
+#if defined(__cplusplus)
+extern "C"{
+#endif
+void SGXSanLogEnter(const char *str);
+#if defined(__cplusplus)
+}
+#endif
+#define LogEnter SGXSanLogEnter
 #include <algorithm>
 #include <cstdio>
 #include <map>
@@ -24,6 +32,7 @@ extern "C" {
 
 TeeErrorCode ecall_RaVerifyReport(sgx_target_info_t* target_info,
                                   sgx_report_t* target_report) {
+    LogEnter(__func__);
   if (memcmp(target_info->mr_enclave.m, target_report->body.mr_enclave.m,
              sizeof(sgx_measurement_t)) != 0) {
     ELOG_ERROR("MRENCALVE mismatch when verify the target report");

@@ -4,10 +4,11 @@ THISDIR="$(dirname $0)"
 BUILDDIR="$THISDIR/build"
 
 OPT_BUILD_MODE=PreRelease
-OPT_SGX_HW_MODE=HW
+OPT_SGX_HW_MODE=SIM
 OPT_VERBOSE=0
 OPT_WITHOUT_LOG=0
 OPT_WITH_SAMPLES=0
+OPT_KAFL=0
 
 
 EXIT_ERROR() {
@@ -33,12 +34,14 @@ do_compile() {
     [ "$OPT_VERBOSE" -eq 1 ] && verbose_opt="VERBOSE=1"
     [ "$OPT_WITHOUT_LOG" -eq 1 ] && without_log="ON"
     [ "$OPT_WITH_SAMPLES" -eq 1 ] && build_samples="ON"
+    [ "$OPT_KAFL" -eq 1 ] && kafl_fuzzer="ON"
 
     mkdir -p $BUILDDIR && cd $BUILDDIR && \
     cmake -DSGX_HW=$sgx_hw \
           -DSGX_MODE=$sgx_build_mode \
           -DBUILD_SAMPLES=$build_samples \
           -DWITHOUT_LOG=$without_log \
+          -DKAFL_FUZZER=$kafl_fuzzer \
           ../ && \
     make $verbose_opt -j$(nproc)
 }
@@ -55,10 +58,11 @@ Options:
     --without-log   Disable all log messages
     -v              Show gcc command in detail when build
     -h|--help       Show this help menu
+    --kafl          Use kAFL as fuzz engine, instead of libFuzzer
 EOF
 }
 
-ARGS=`getopt -o vh -l help,clean,build:,mode:,without-log,with-samples -- "$@"`
+ARGS=`getopt -o vh -l help,clean,build:,mode:,without-log,with-samples,kafl -- "$@"`
 [ $? != 0 ] && EXIT_ERROR "Invalid Arguments ..."
 eval set -- "$ARGS"
 while true ; do
@@ -70,6 +74,7 @@ while true ; do
         --clean)        OPT_DO_CLEAN=1 ;       shift 1 ;;
         --with-samples) OPT_WITH_SAMPLES=1 ;   shift 1 ;;
         --without-log)  OPT_WITHOUT_LOG=1 ;    shift 1 ;;
+        --kafl)         OPT_KAFL=1;            shift 1 ;;
         --)             shift ; break ;;
         *)              EXIT_ERROR "Internal error!" ;;
     esac
