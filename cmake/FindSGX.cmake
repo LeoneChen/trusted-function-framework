@@ -35,9 +35,9 @@ include(CMakeParseArguments)
 
 set(SGX_FOUND "NO")
 
-if(EXISTS SGX_DIR)
+if(EXISTS ${SGX_DIR})
     set(SGX_PATH ${SGX_DIR})
-elseif(EXISTS SGX_ROOT)
+elseif(EXISTS ${SGX_ROOT})
     set(SGX_PATH ${SGX_ROOT})
 elseif(EXISTS $ENV{SGX_SDK})
     set(SGX_PATH $ENV{SGX_SDK})
@@ -111,6 +111,27 @@ if(SGX_FOUND)
     set(APP_C_FLAGS "${SGX_COMMON_CFLAGS} -fPIC -Wno-attributes ${APP_INC_FLAGS}")
     set(APP_CXX_FLAGS "${APP_C_FLAGS}")
 
+    function(_build_edl_hdr edl edl_search_paths use_prefix)
+        get_filename_component(EDL_NAME ${edl} NAME_WE)
+        get_filename_component(EDL_ABSPATH ${edl} ABSOLUTE)
+        set(EDL_T_H "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_t.h")
+        set(SEARCH_PATHS "")
+        foreach(path ${edl_search_paths})
+            get_filename_component(ABSPATH ${path} ABSOLUTE)
+            list(APPEND SEARCH_PATHS "${ABSPATH}")
+        endforeach()
+        list(APPEND SEARCH_PATHS "${SGX_PATH}/include")
+        string(REPLACE ";" ":" SEARCH_PATHS "${SEARCH_PATHS}")
+        if(${use_prefix})
+            set(USE_PREFIX "--use-prefix")
+        endif()
+        add_custom_command(OUTPUT ${EDL_T_H}
+                           COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --header-only --trusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
+                           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+        set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_t.h")
+    endfunction()
+
     function(_build_edl_obj edl edl_search_paths use_prefix)
         get_filename_component(EDL_NAME ${edl} NAME_WE)
         get_filename_component(EDL_ABSPATH ${edl} ABSOLUTE)
@@ -153,9 +174,10 @@ if(SGX_FOUND)
             set(LDSCRIPT_FLAG "-Wl,--version-script=${LDS_ABSPATH}")
         endif()
 
-        _build_edl_obj(${SGX_EDL} "${SGX_EDL_SEARCH_PATHS}" ${SGX_USE_PREFIX})
+        _build_edl_hdr(${SGX_EDL} "${SGX_EDL_SEARCH_PATHS}" ${SGX_USE_PREFIX})
 
-        add_library(${target} STATIC ${SGX_SRCS} $<TARGET_OBJECTS:${target}-edlobj>)
+        get_filename_component(EDL_NAME ${SGX_EDL} NAME_WE)
+        add_library(${target} STATIC ${SGX_SRCS} ${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_t.h)
         set_target_properties(${target} PROPERTIES COMPILE_FLAGS ${ENCLAVE_CXX_FLAGS})
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -318,11 +340,11 @@ if(SGX_FOUND)
             message(FATAL_ERROR "SGX enclave edl file search paths are not provided!")
         endif()
 
-        set(EDL_U_SRCS "")
+        set(EDL_U_HDRS "")
         foreach(EDL ${SGX_EDL})
             get_filename_component(EDL_NAME ${EDL} NAME_WE)
             get_filename_component(EDL_ABSPATH ${EDL} ABSOLUTE)
-            set(EDL_U_C "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_u.c")
+            set(EDL_U_H "${CMAKE_CURRENT_BINARY_DIR}/${EDL_NAME}_u.h")
             set(SEARCH_PATHS "")
             foreach(path ${SGX_EDL_SEARCH_PATHS})
                 get_filename_component(ABSPATH ${path} ABSOLUTE)
@@ -333,14 +355,14 @@ if(SGX_FOUND)
             if(${SGX_USE_PREFIX})
                 set(USE_PREFIX "--use-prefix")
             endif()
-            add_custom_command(OUTPUT ${EDL_U_C}
-                               COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --untrusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
+            add_custom_command(OUTPUT ${EDL_U_H}
+                               COMMAND ${SGX_EDGER8R} ${USE_PREFIX} --header-only --untrusted ${EDL_ABSPATH} --search-path ${SEARCH_PATHS}
                                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-            list(APPEND EDL_U_SRCS ${EDL_U_C})
+            list(APPEND EDL_U_HDRS ${EDL_U_H})
         endforeach()
 
-        add_library(${target} ${mode} ${SGX_SRCS} ${EDL_U_SRCS})
+        add_library(${target} ${mode} ${SGX_SRCS} ${EDL_U_HDRS})
         set_target_properties(${target} PROPERTIES COMPILE_FLAGS ${APP_CXX_FLAGS})
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
         target_link_libraries(${target} "${SGX_COMMON_CFLAGS} \

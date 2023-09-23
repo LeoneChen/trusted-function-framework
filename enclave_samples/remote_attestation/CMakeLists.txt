@@ -5,7 +5,13 @@ set(TEE_PROTO_FILES
 PROTOBUF_GENERATE_CPP(
     TEE_PROTO_SRCS
     TEE_PROTO_HDRS
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/uproto
+    ${TEE_PROTO_FILES}
+)
+PROTOBUF_GENERATE_CPP_ENCLAVE(
+    TEE_PROTO_SRCS_T
+    TEE_PROTO_HDRS_T
+    ${CMAKE_BINARY_DIR}/tproto
     ${TEE_PROTO_FILES}
 )
 
@@ -19,7 +25,7 @@ set(EX_EDL_SEARCH_PATHS
     ${INC_EX}
 )
 set(E_SRCS
-    ${TEE_PROTO_SRCS}
+    ${TEE_PROTO_SRCS_T}
     ${CMAKE_CURRENT_SOURCE_DIR}/enclave/enclave.cpp
 )
 set(LDS ${CMAKE_CURRENT_SOURCE_DIR}/enclave/enclave.lds)
@@ -32,7 +38,6 @@ include_directories(
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_BINARY_DIR}
     ${TEE_TOP_DIR}/sdk
-    ${TEE_TOP_DIR}/third_party/protobuf-cpp/src/
 )
 
 set(SAMPLEENCLAVE enclave_remote_attestation)
@@ -43,6 +48,11 @@ add_enclave_library(
     EDL ${EDL}
     EDL_SEARCH_PATHS ${EX_EDL_SEARCH_PATHS}
     LDSCRIPT ${LDS}
+)
+target_include_directories(${SAMPLEENCLAVE}
+    PRIVATE
+    ${CMAKE_BINARY_DIR}/tproto
+    ${TEE_TOP_DIR}/third_party/protobuf-cpp/src/
 )
 enclave_sign(
     ${SAMPLEENCLAVE}
@@ -68,6 +78,7 @@ add_untrusted_executable(
     EDL ${EDL}
     EDL_SEARCH_PATHS ${EX_EDL_SEARCH_PATHS}
 )
+target_include_directories(${SAMPLEAPP} PRIVATE ${CMAKE_BINARY_DIR}/uproto)
 target_link_libraries(
     ${SAMPLEAPP}
     -L${LIBRARY_OUTPUT_PATH} -L${SGX_LIBRARY_DIR} -L${SGXSSL_LIB} -L/usr/lib64

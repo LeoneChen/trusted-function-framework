@@ -1,3 +1,4 @@
+#include "kafl_hc.h"
 #include <string>
 
 #include "./sgx_trts.h"
@@ -12,6 +13,7 @@ extern "C" {
 #endif
 
 TeeErrorCode ecall_GetRand(uint8_t* rand, uint32_t len) {
+    LogEnter(__func__);
   return TEE_ERROR_CODE(sgx_read_rand(rand, len));
 }
 

@@ -11,7 +11,7 @@ file(GLOB UNTRUSTED_ENCLAVE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/enclave/*.cpp)
 file(GLOB UNTRUSTED_RA_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/ra/*.cpp)
 file(GLOB UNTRUSTED_UTILS_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp)
 file(GLOB PROTO_FILES ${TEE_TOP_DIR}/proto/*.proto)
-PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS ${CMAKE_BINARY_DIR} ${PROTO_FILES})
+PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS ${CMAKE_BINARY_DIR}/uproto ${PROTO_FILES})
 
 set(EDL_SEARCH_PATHS ${TOP_SRC_DIR}/edl)
 set(EDL_FILE ${TOP_SRC_DIR}/edl/kubetee.edl)
@@ -21,7 +21,7 @@ set(U_SRCS
     ${UNTRUSTED_ENCLAVE_SRCS}
     ${UNTRUSTED_RA_SRCS}
     ${UNTRUSTED_UTILS_SRCS}
-    ${PROTO_SRCS}
+    ${PROTO_HDRS}
 )
 
 set(UNTRUSTED_LIB ukubetee)
@@ -37,6 +37,7 @@ target_include_directories(
     ${TOP_SRC_DIR}/include
     ${TOP_SRC_DIR}/include/tee
     ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/uproto
     ${CMAKE_CURRENT_BINARY_DIR}
     /usr/include/openssl/../
     ${TEE_TOP_DIR}/third_party/cppcodec
@@ -45,5 +46,5 @@ target_include_directories(
 target_link_libraries(
     ${UNTRUSTED_LIB}
     -lcurl -lprotobuf
-    -Wl,-rpath=.:/lib64:/usr/local/lib:/usr/local/lib64:${SGX_LIBRARY_DIR}
+    -Wl,-rpath=.:/lib64:/usr/local/lib:/usr/local/lib64
 )

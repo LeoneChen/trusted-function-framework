@@ -81,3 +81,4 @@ else
     do_compile "$OPT_BUILD_MODE" "$OPT_SGX_HW_MODE"
 fi
 exit $?
+# ~/SGXSan/Tool/GetLayout.sh -d build/enclave_service CMakeFiles/enclave_service.dir/trusted/trusted_enclave_service.cpp.o CMakeFiles/enclave_service.dir/__/tproto/enclave_service.pb.cc.o CMakeFiles/enclave_service-edlobj.dir/enclave_service_t.c.o /mnt/hdd/sgx-evaluate/sgxfuzz/Enclaves/trusted-function-framework/build/out/libtkubetee.a /mnt/hdd/sgx-evaluate/sgxfuzz/Enclaves/trusted-function-framework/build/out/libtprotobuf.a /opt/intel/sgxsdk/lib64/libsgx_tstdc.a /opt/intel/sgxsdk/lib64/libsgx_tcxx.a /opt/intel/sgxsdk/lib64/libsgx_tkey_exchange.a /opt/intel/sgxsdk/lib64/libsgx_tcrypto.a /opt/intel/sgxsdk/lib64/libsgx_tservice.a /opt/intel/sgxsdk/lib64/libsgx_pthread.a /opt/intel/sgxssl/lib64/libsgx_tsgxssl_crypto.a /opt/intel/sgxsdk/lib64/libsgx_trts.a /opt/intel/sgxssl/lib64/libsgx_tsgxssl.a
